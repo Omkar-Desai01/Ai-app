@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import NewsScreen from "@/src/screens/NewsScreen";
+import NewsScreen from "../../src/screens/NewsScreen";
 
 export default function NewsTab() {
   return (

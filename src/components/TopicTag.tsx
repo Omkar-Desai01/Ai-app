@@ -5,13 +5,21 @@ interface TopicTagProps {
   label: string;
   isSelected: boolean;
   onPress: () => void;
+  onLongPress: () => void;
 }
 
-const TopicTag: React.FC<TopicTagProps> = ({ label, isSelected, onPress }) => {
+const TopicTag: React.FC<TopicTagProps> = ({
+  label,
+  isSelected,
+  onPress,
+  onLongPress,
+}) => {
   return (
     <TouchableOpacity
       style={[styles.tag, isSelected && styles.selectedTag]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={500}
     >
       <Text style={[styles.tagText, isSelected && styles.selectedTagText]}>
         {label}

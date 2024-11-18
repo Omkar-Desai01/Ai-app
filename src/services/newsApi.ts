@@ -9,6 +9,7 @@ interface NewsAPIResponse {
     title: string;
     description: string;
     url: string;
+    urlToImage: string;
     publishedAt: string;
     source: {
       id: string | null;
@@ -18,29 +19,46 @@ interface NewsAPIResponse {
   }>;
 }
 
+const isContentRelevant = (
+  content: string,
+  topic: string,
+  threshold: number = 0.7
+): boolean => {
+  // Normalize strings for comparison
+  const normalizeString = (str: string) =>
+    str.toLowerCase().replace(/[^a-z0-9\s]/g, "");
+
+  const normalizedContent = normalizeString(content);
+  const normalizedTopic = normalizeString(topic);
+  const topicWords = normalizedTopic.split(/\s+/);
+
+  // Check if any topic word or the whole phrase appears in the content
+  const hasExactMatch = normalizedContent.includes(normalizedTopic);
+  if (hasExactMatch) return true;
+
+  // Count how many topic words appear in the content
+  const matchingWords = topicWords.filter((word) =>
+    normalizedContent.includes(word)
+  );
+
+  // Calculate relevance score
+  const relevanceScore = matchingWords.length / topicWords.length;
+  return relevanceScore >= threshold;
+};
+
 export const fetchNewsByTopic = async (topic: string) => {
   try {
-    const endpoint =
-      topic.toLowerCase() === "tech" ? "/top-headlines" : "/everything";
-
-    const params =
-      topic.toLowerCase() === "tech"
-        ? {
-            category: "technology",
-            language: "en",
-            pageSize: 10,
-            apiKey: API_KEY,
-          }
-        : {
-            q: topic,
-            language: "en",
-            sortBy: "publishedAt",
-            pageSize: 10,
-            apiKey: API_KEY,
-          };
+    // Fetch more articles initially to allow for filtering
+    const params = {
+      q: topic,
+      language: "en",
+      sortBy: "publishedAt",
+      pageSize: 50, // Increased to get more candidates for filtering
+      apiKey: API_KEY,
+    };
 
     const response = await axios.get<NewsAPIResponse>(
-      `${BASE_URL}${endpoint}`,
+      `${BASE_URL}/everything`,
       {
         params,
         headers: {
@@ -53,7 +71,21 @@ export const fetchNewsByTopic = async (topic: string) => {
       throw new Error("Failed to fetch news");
     }
 
-    return response.data.articles.map((article, index) => ({
+    // Filter articles for relevance
+    const relevantArticles = response.data.articles.filter((article) => {
+      const contentToCheck = [
+        article.title,
+        article.description,
+        article.content,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return isContentRelevant(contentToCheck, topic);
+    });
+
+    // Take the top 10 most relevant articles
+    return relevantArticles.slice(0, 10).map((article, index) => ({
       id: index.toString(),
       title: article.title,
       description: article.description || "No description available",
@@ -61,6 +93,7 @@ export const fetchNewsByTopic = async (topic: string) => {
       source: article.source.name,
       publishedAt: new Date(article.publishedAt).toLocaleDateString(),
       url: article.url,
+      imageUrl: article.urlToImage,
     }));
   } catch (error) {
     if (axios.isAxiosError(error)) {

@@ -6,12 +6,15 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Text,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import NewsCard from "../components/NewsCard";
 import TopicTag from "../components/TopicTag";
 import { fetchNewsByTopic } from "../services/newsApi";
 import NewsDetailScreen from "./NewsDetailScreen";
+import AddTopicModal from "../components/AddTopicModal";
+import TopicActionModal from "../components/TopicActionModal";
 
 interface NewsItem {
   id: string;
@@ -20,6 +23,8 @@ interface NewsItem {
   source?: string;
   publishedAt?: string;
   content?: string;
+  url?: string;
+  imageUrl?: string;
 }
 
 export default function NewsScreen() {
@@ -28,8 +33,13 @@ export default function NewsScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
-
-  const topics = ["AI", "Tech"];
+  const [topics, setTopics] = useState<string[]>(["AI", "Tech"]);
+  const [showAddTopic, setShowAddTopic] = useState(false);
+  const [selectedTopicForAction, setSelectedTopicForAction] = useState<
+    string | null
+  >(null);
+  const [isEditingTopic, setIsEditingTopic] = useState(false);
+  const [topicToEdit, setTopicToEdit] = useState("");
 
   useEffect(() => {
     loadNews(selectedTopic);
@@ -49,20 +59,68 @@ export default function NewsScreen() {
     }
   };
 
+  const handleAddTopic = (newTopic: string) => {
+    setTopics([...topics, newTopic]);
+    setSelectedTopic(newTopic);
+    setShowAddTopic(false);
+  };
+
+  const handleTopicLongPress = (topic: string) => {
+    setSelectedTopicForAction(topic);
+  };
+
+  const handleDeleteTopic = () => {
+    if (selectedTopicForAction) {
+      const newTopics = topics.filter((t) => t !== selectedTopicForAction);
+      setTopics(newTopics);
+      if (selectedTopic === selectedTopicForAction) {
+        setSelectedTopic(newTopics[0] || "AI");
+      }
+    }
+  };
+
+  const handleEditTopic = () => {
+    if (selectedTopicForAction) {
+      setTopicToEdit(selectedTopicForAction);
+      setIsEditingTopic(true);
+    }
+  };
+
+  const handleTopicEdit = (newTopic: string) => {
+    const newTopics = topics.map((t) =>
+      t === selectedTopicForAction ? newTopic : t
+    );
+    setTopics(newTopics);
+    if (selectedTopic === selectedTopicForAction) {
+      setSelectedTopic(newTopic);
+    }
+    setIsEditingTopic(false);
+    setSelectedTopicForAction(null);
+  };
+
   const renderTopics = () => (
-    <View style={styles.topicsContainer}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.topicsScroll}
+      contentContainerStyle={styles.topicsContainer}
+    >
       {topics.map((topic) => (
         <TopicTag
           key={topic}
           label={topic}
           isSelected={selectedTopic === topic}
           onPress={() => setSelectedTopic(topic)}
+          onLongPress={() => handleTopicLongPress(topic)}
         />
       ))}
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => setShowAddTopic(true)}
+      >
         <Ionicons name="add" size={24} color="#FFFFFF" />
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 
   const renderContent = () => {
@@ -87,11 +145,12 @@ export default function NewsScreen() {
         data={newsData}
         renderItem={({ item }) => (
           <NewsCard
+            key={item.id}
             title={item.title}
             description={item.description}
             source={item.source}
             publishedAt={item.publishedAt}
-            content={item.content}
+            imageUrl={item.imageUrl}
             onPress={() => handleNewsPress(item)}
           />
         )}
@@ -115,7 +174,37 @@ export default function NewsScreen() {
       {renderTopics()}
       {renderContent()}
       {selectedNews && (
-        <NewsDetailScreen {...selectedNews} onClose={handleCloseDetail} />
+        <NewsDetailScreen
+          {...selectedNews}
+          url={selectedNews.url}
+          onClose={handleCloseDetail}
+        />
+      )}
+      {showAddTopic && (
+        <AddTopicModal
+          visible={showAddTopic}
+          onClose={() => setShowAddTopic(false)}
+          onAdd={handleAddTopic}
+        />
+      )}
+      {selectedTopicForAction && (
+        <TopicActionModal
+          topic={selectedTopicForAction}
+          onClose={() => setSelectedTopicForAction(null)}
+          onDelete={handleDeleteTopic}
+          onEdit={handleEditTopic}
+        />
+      )}
+      {isEditingTopic && (
+        <AddTopicModal
+          visible={isEditingTopic}
+          onClose={() => {
+            setIsEditingTopic(false);
+            setTopicToEdit("");
+          }}
+          onAdd={handleTopicEdit}
+          initialValue={topicToEdit}
+        />
       )}
     </View>
   );
@@ -126,6 +215,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
     paddingTop: 4,
+  },
+  topicsScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
   topicsContainer: {
     flexDirection: "row",
@@ -140,6 +233,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1C1C1E",
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 8,
   },
   centerContainer: {
     flex: 1,
